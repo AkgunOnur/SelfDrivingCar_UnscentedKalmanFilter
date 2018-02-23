@@ -62,7 +62,8 @@ UKF::UKF() {
   n_x_ = 5;
   n_aug_ = n_x_ + 2;
   x_ = VectorXd(n_x_);
-
+  Xsig_pred_ = MatrixXd(n_x_, 2*n_aug_+1);
+  weights_ = VectorXd(2*n_aug_+1);
 
 }
 
@@ -146,29 +147,29 @@ void UKF::Prediction(double dt) {
 	MatrixXd P_aug = MatrixXd(n_aug_, n_aug_); // augmented covariance matrix
 	MatrixXd Xsig_aug = MatrixXd(n_aug_, 2 * n_aug_ + 1); //augmented sigma matrix
 	
-	x_aug.head(5) << x;
+	x_aug.head(5) << x_;
 	x_aug(5) = 0;
 	x_aug(6) = 0;
 
-	P_aug.topLeftCorner(5, 5) << P;
-	P_aug.bottomRightCorner(2, 2) << std_a_*std_a_, 0.0, 0.0, std_yawdd_*std_yawdd_;
+	P_aug.topLeftCorner(n_x_, n_x_) << P_;
+	P_aug.bottomRightCorner(n_aug_ - n_x_, n_aug_ - n_x_) << std_a_*std_a_, 0.0, 0.0, std_yawdd_*std_yawdd_;
 
-	MatrixXd L = P_aug.llt().matrixL();
+	MatrixXd L = MatrixXd(n_aug_, n_aug_);
+	L = P_aug.llt().matrixL();
 
 	Xsig_aug.col(0) = x_aug;
-	for (int i = 0; i < n_aug; i++)
+	for (int i = 0; i < n_aug_; i++)
 	{
-		Xsig_aug.col(i + 1) = x_aug + sqrt(lambda_ + n_aug) * L.col(i);
-		Xsig_aug.col(i + 1 + n_aug) = x_aug - sqrt(lambda_ + n_aug) * L.col(i);
+		Xsig_aug.col(i + 1) = x_aug + sqrt(lambda_ + n_aug_) * L.col(i);
+		Xsig_aug.col(i + 1 + n_aug_) = x_aug - sqrt(lambda_ + n_aug_) * L.col(i);
 	}
 
 	//Prediction Step 2 - Sigma point prediction
-	Xsig_pred_ = MatrixXd(n_x_, 2 * n_aug_ + 1); //augmented sigma prediction matrix
 	float px, py, v, psi, psi_dot, nu_a, nu_yawdd; // state elements
-	VectorXd state_dot = VectorXd(5); //derivative of states
-	VectorXd process_noise = VectorXd(5); // process noise vector
+	VectorXd state_dot = VectorXd(n_x_); //derivative of states
+	VectorXd process_noise = VectorXd(n_x_); // process noise vector
 
-	for (int i = 0; i<(2 * n_aug + 1); i++) {
+	for (int i = 0; i<(2 * n_aug_ + 1); i++) {
 		px = Xsig_aug(0, i);
 		py = Xsig_aug(1, i);
 		v = Xsig_aug(2, i);
@@ -192,34 +193,30 @@ void UKF::Prediction(double dt) {
 				0, psi_dot*dt, 0;
 		}
 
-		Xsig_pred_.col(i) = Xsig_aug.col(i).head(n_x) + state_dot + process_noise;
+		Xsig_pred_.col(i) = Xsig_aug.col(i).head(n_x_) + state_dot + process_noise;
 
 	}
 
 	//Prediction Step 3 - Calculating the predicted mean and covariance
+	VectorXd xdiff = VectorXd(n_x_);
 
-	weights_ = VectorXd(2 * n_aug_ + 1);
-	VectorXd xdiff(5);
-
-	for (int i = 0; i<(2 * n_aug + 1); i++) {
+	for (int i = 0; i<(2 * n_aug_ + 1); i++) {
 		if (i == 0)
-			weights_(i) = lambda_ / (lambda_ + n_aug);
+			weights_(i) = lambda_ / (lambda_ + n_aug_);
 		else
-			weights(i) = 0.5 / (lambda_ + n_aug);
+			weights_(i) = 0.5 / (lambda_ + n_aug_);
 
-		x += weights(i) * Xsig_pred.col(i);
+		x_ += weights_(i) * Xsig_pred_.col(i);
 
 	}
 
-	for (int i = 0; i<(2 * n_aug + 1); i++) {
-		xdiff = Xsig_pred.col(i) - x;
+	for (int i = 0; i<(2 * n_aug_ + 1); i++) {
+		xdiff = Xsig_pred_.col(i) - x_;
 
-		while (xdiff(3) > M_PI)
-			xdiff(3) -= 2 * M_PI;
-		while (xdiff(3) < -M_PI)
-			xdiff(3) += 2 * M_PI;
+		while (xdiff(3) > M_PI) xdiff(3) -= 2 * M_PI;
+		while (xdiff(3) < -M_PI) xdiff(3) += 2 * M_PI;
 
-		P += weights(i) * xdiff * xdiff.transpose();
+		P_ += weights_(i) * xdiff * xdiff.transpose();
 
 	}
 
@@ -243,7 +240,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   //set measurement dimension, radar can measure r, phi, and r_dot
 	int n_z = 2;
 	//create matrix for sigma points in measurement space
-	MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug + 1);
+	MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug_ + 1);
 
 	//mean predicted measurement
 	VectorXd z_pred = VectorXd(n_z);
@@ -251,9 +248,9 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 	//measurement covariance matrix S
 	MatrixXd S = MatrixXd(n_z, n_z);
 	float px, py, v, psi, psi_dot;
-	VectorXd z_meas(n_z);
+	VectorXd z_meas = VectorXd(n_z);
 	MatrixXd R = MatrixXd(n_z, n_z);
-	VectorXd z_diff(n_z);
+	VectorXd zdiff = VectorXd(n_z);
 
 	z_pred.fill(0.0);
 	S.fill(0.0);
@@ -268,18 +265,18 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 		z_meas << px, py;
 		Zsig.col(i) = z_meas;
 
-		z_pred += weights(i) * z_meas;
+		z_pred += weights_(i) * z_meas;
 	}
 
 	R << std_laspx_*std_laspx_, 0,
 		0, std_laspy_*std_laspy_;
 
 	for (int i = 0; i<(2 * n_aug_ + 1); i++) {
-		z_diff = Zsig.col(i) - z_pred;
-		while (z_diff(1) < -M_PI) z_diff(1) += 2 * M_PI;
-		while (z_diff(1) > M_PI) z_diff(1) -= 2 * M_PI;
+		zdiff = Zsig.col(i) - z_pred;
+		while (zdiff(1) < -M_PI) zdiff(1) += 2 * M_PI;
+		while (zdiff(1) > M_PI) zdiff(1) -= 2 * M_PI;
 
-		S += weights_(i)*z_diff*z_diff.transpose();
+		S += weights_(i)*zdiff*zdiff.transpose();
 	}
 
 	S += R;
@@ -287,36 +284,36 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
 	//Update Step 2 - Update state
 	MatrixXd Tc = MatrixXd(n_x_, n_z);
-	VectorXd diff_x(n_x_), diff_z(n_z);
+	VectorXd xdiff = VectorXd(n_x_);
 	MatrixXd K = MatrixXd(n_x_, n_z);
 	Tc.fill(0.0);
 
 	for (int i = 0; i<(2 * n_aug_ + 1); i++) {
-		diff_x = Xsig_pred_.col(i) - x_;
-		diff_z = Zsig.col(i) - z_pred;
+		xdiff = Xsig_pred_.col(i) - x_;
+		zdiff = Zsig.col(i) - z_pred;
 
-		while (diff_x(3) > M_PI) diff_x(3) -= 2.*M_PI;
-		while (diff_x(3) < -M_PI) diff_x(3) += 2.*M_PI;
+		while (xdiff(3) > M_PI) xdiff(3) -= 2.*M_PI;
+		while (xdiff(3) < -M_PI) xdiff(3) += 2.*M_PI;
 
-		while (diff_z(1) > M_PI) diff_z(1) -= 2.*M_PI;
-		while (diff_z(1) < -M_PI) diff_z(1) += 2.*M_PI;
+		while (zdiff(1) > M_PI) zdiff(1) -= 2.*M_PI;
+		while (zdiff(1) < -M_PI) zdiff(1) += 2.*M_PI;
 
-		Tc += weights_(i)*diff_x*diff_z.transpose();
+		Tc += weights_(i)*xdiff*zdiff.transpose();
 	}
 
 	MatrixXd S_inv = S.inverse();
 	K = Tc*S_inv;
 
-	VectorXd z_diff = z_meas - z_pred;
+	zdiff = z_meas - z_pred;
 
-	while (z_diff(1) > M_PI) z_diff(1) -= 2.*M_PI;
-	while (z_diff(1) < -M_PI) z_diff(1) += 2.*M_PI;
+	while (zdiff(1) > M_PI) zdiff(1) -= 2.*M_PI;
+	while (zdiff(1) < -M_PI) zdiff(1) += 2.*M_PI;
 
-	x_ = x_ + K*z_diff;
+	x_ = x_ + K*zdiff;
 	P_ = P_ - K*S*K.transpose();
 
 	//Step 3 - Calculate the NIS value
-	float epsilon = z_diff.transpose() * S_inv * z_diff;
+	float epsilon = zdiff.transpose() * S_inv * zdiff;
 	std::cout << "NIS for Laser: " << epsilon << std::endl;
 
 }
@@ -339,7 +336,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 	//set measurement dimension, radar can measure r, phi, and r_dot
 	int n_z = 3;
 	//create matrix for sigma points in measurement space
-	MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug + 1);
+	MatrixXd Zsig = MatrixXd(n_z, 2 * n_aug_ + 1);
 
 	//mean predicted measurement
 	VectorXd z_pred = VectorXd(n_z);
@@ -349,7 +346,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 	float rho, theta, rho_dot, px, py, v, psi, psi_dot;
 	VectorXd z_meas(n_z);
 	MatrixXd R = MatrixXd(n_z, n_z);
-	VectorXd z_diff(n_z);
+	VectorXd zdiff = VectorXd(n_z);
 
 	z_pred.fill(0.0);
 	S.fill(0.0);
@@ -373,21 +370,19 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 		z_meas << rho, theta, rho_dot;
 		Zsig.col(i) = z_meas;
 
-		z_pred += weights(i) * z_meas;
+		z_pred += weights_(i) * z_meas;
 	}
 
 	R << std_radr_*std_radr_, 0, 0,
 		0, std_radphi_*std_radphi_, 0,
 		0, 0, std_radrd_*std_radrd_;
 
-	for (int i = 0; i<(2 * n_aug + 1); i++) {
-		z_diff = Zsig.col(i) - z_pred;
-		while (z_diff(1) < -M_PI)
-			z_diff(1) += 2 * M_PI;
-		while (z_diff(1) > M_PI)
-			z_diff(1) -= 2 * M_PI;
+	for (int i = 0; i<(2 * n_aug_ + 1); i++) {
+		zdiff = Zsig.col(i) - z_pred;
+		while (zdiff(1) < -M_PI) zdiff(1) += 2 * M_PI;
+		while (zdiff(1) > M_PI) zdiff(1) -= 2 * M_PI;
 
-		S += weights(i)*z_diff*z_diff.transpose();
+		S += weights_(i)*zdiff*zdiff.transpose();
 	}
 
 	S += R;
@@ -395,36 +390,36 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 
 	//Update Step 2 - Update state
 	MatrixXd Tc = MatrixXd(n_x_, n_z);
-	VectorXd diff_x(n_x_), diff_z(n_z);
+	VectorXd xdiff = VectorXd(n_x_);
 	MatrixXd K = MatrixXd(n_x_, n_z);
 	Tc.fill(0.0);
 
 	for (int i = 0; i<(2 * n_aug_ + 1); i++) {
-		diff_x = Xsig_pred_.col(i) - x_;
-		diff_z = Zsig.col(i) - z_pred;
+		xdiff = Xsig_pred_.col(i) - x_;
+		zdiff = Zsig.col(i) - z_pred;
 
-		while (diff_x(3) > M_PI) diff_x(3) -= 2.*M_PI;
-		while (diff_x(3) < -M_PI) diff_x(3) += 2.*M_PI;
+		while (xdiff(3) > M_PI) xdiff(3) -= 2.*M_PI;
+		while (xdiff(3) < -M_PI) xdiff(3) += 2.*M_PI;
 
-		while (diff_z(1) > M_PI) diff_z(1) -= 2.*M_PI;
-		while (diff_z(1) < -M_PI) diff_z(1) += 2.*M_PI;
+		while (zdiff(1) > M_PI) zdiff(1) -= 2.*M_PI;
+		while (zdiff(1) < -M_PI) zdiff(1) += 2.*M_PI;
 
-		Tc += weights_(i)*diff_x*diff_z.transpose();
+		Tc += weights_(i)*xdiff*zdiff.transpose();
 	}
 
 	MatrixXd S_inv = S.inverse();
 	K = Tc*S_inv;
 
-	VectorXd z_diff = z_meas - z_pred;
+	zdiff = z_meas - z_pred;
 
-	while (z_diff(1) > M_PI) z_diff(1) -= 2.*M_PI;
-	while (z_diff(1) < -M_PI) z_diff(1) += 2.*M_PI;
+	while (zdiff(1) > M_PI) zdiff(1) -= 2.*M_PI;
+	while (zdiff(1) < -M_PI) zdiff(1) += 2.*M_PI;
 
-	x_ = x_ + K*z_diff;
+	x_ = x_ + K*zdiff;
 	P_ = P_ - K*S*K.transpose();
 
 	//Step 3 - Calculate the NIS value
-	float epsilon = z_diff.transpose() * S_inv * z_diff;
+	float epsilon = zdiff.transpose() * S_inv * zdiff;
 	std::cout << "NIS for Radar: " << epsilon << std::endl;
 
 }
