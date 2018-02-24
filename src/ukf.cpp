@@ -66,6 +66,7 @@ UKF::UKF() {
   P_ = MatrixXd::Identity(n_x_, n_x_);
   Xsig_pred_ = MatrixXd(n_x_, 2*n_aug_+1);
   weights_ = VectorXd(2*n_aug_+1);
+
   H_laser_ = MatrixXd(2,n_x_);
   H_laser_ << 1,0,0,0,0,
 	      0,1,0,0,0;
@@ -81,6 +82,15 @@ UKF::UKF() {
   weights_(0) = lambda_ / (lambda_ + n_aug_);
   for(int i = 1; i<(2 * n_aug_ + 1); i++)
 	weights_(i) = 0.5 / (lambda_ + n_aug_);
+
+  nis_radar_limit = 7.815;
+  nis_laser_limit = 5.991;
+
+  nis_radar_total = 0;
+  nis_radar_true = 0;
+  nis_laser_total = 0;
+  nis_laser_true = 0;
+
 }
 
 UKF::~UKF() {}
@@ -262,8 +272,12 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 	P_ = (I - K * H_laser_) * P_;
 
  	//Step 3 - Calculate the NIS value
+	nis_laser_total += 1;
 	float epsilon = y.transpose() * Si * y;
-	std::cout << "NIS for Laser: " << epsilon << std::endl;
+	if (epsilon < nis_laser_limit){
+		nis_laser_true += 1;
+		std::cout << "How accurate is the Laser Measurement? " << nis_laser_true/nis_laser_total << std::endl;
+	}
 
 }
 
@@ -367,7 +381,11 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
 	P_ = P_ - K*S*K.transpose();
 
 	//Step 3 - Calculate the NIS value
+	nis_radar_total += 1;
 	float epsilon = zdiff.transpose() * S_inv * zdiff;
-	std::cout << "NIS for Radar: " << epsilon << std::endl;
+	if (epsilon < nis_radar_limit){
+		nis_radar_true += 1;
+		std::cout << "How accurate is the Radar Measurement? " << nis_radar_true / nis_radar_total << std::endl;
+	}
 
 }

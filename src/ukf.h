@@ -76,6 +76,24 @@ public:
   //Kalman Filter is sufficient for Laser measurement
   MatrixXd H_laser_;
 
+  //NIS limit value from chi squared table for radar measurements
+  float nis_radar_limit;
+
+  //NIS limit value from chi squared table for laser measurements
+  float nis_laser_limit;
+
+  //Total number of NIS measurements for Radar
+  float nis_radar_total;
+
+  //Total number of measured epsilon value is smaller than NIS limit value
+  float nis_radar_true;
+
+  //Total number of NIS measurements for Laser
+  float nis_laser_total;
+
+  //Total number of measured epsilon value is smaller than NIS limit value
+  float nis_laser_true;
+
   /**
    * Constructor
    */
