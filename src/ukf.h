@@ -67,6 +67,14 @@ public:
   // Sigma point spreading parameter
   double lambda_;
 
+  //Measurement noise matrix for Laser
+  MatrixXd R_laser_;
+
+  //Measurement noise matrix for radar
+  MatrixXd R_radar_;
+
+  //Kalman Filter is sufficient for Laser measurement
+  MatrixXd H_laser_;
 
   /**
    * Constructor
