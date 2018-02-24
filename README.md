@@ -2,7 +2,7 @@
 
 [//]: # (Image References)
 
-[image1]: ./examples/dataset1.jpg "Results for Dataset 1"
+[image1]: ./examples/dataset1.JPG "Results for Dataset 1"
 [image2]: ./examples/dataset2.jpg "Results for Dataset 1"
 
 ## Overview
@@ -29,7 +29,7 @@ In order to install necessary libraries on Windows, [install-ubuntu.sh](./instal
 
 ## Results
 
-As it can been seen below, Unscented Kalman Filter gives better tracking results than Extended Kalman Filter (can be compared with [this] (https://github.com/MeRKeZ/SelfDrivingCar_ExtendedKalmanFilter))
+As it can been seen below, Unscented Kalman Filter gives better tracking results than Extended Kalman Filter (can be compared with [this](https://github.com/MeRKeZ/SelfDrivingCar_ExtendedKalmanFilter) )
 
 ### Results for Dataset 1
 
